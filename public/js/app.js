@@ -4,6 +4,7 @@
 const state = {
   loading: false,
   routeLabels: {},
+  dbFields: {},
 };
 
 // ── Init ───────────────────────────────────────────────────────────────────
@@ -60,12 +61,21 @@ window.run = async function () {
 
   setLoading(true);
 
-  const main = document.getElementById("main");
-  main.innerHTML = "";
+  // Reset UI
+  document.getElementById("emptyState").style.display = "none";
+  document.getElementById("aiBlock").style.display = "none";
 
-  // 1. Status: consultando
+  // Remove cards anteriores
+  const oldGrid = document.getElementById("dataGrid");
+  if (oldGrid) oldGrid.remove();
+  const oldStatus = document.getElementById("statusBar");
+  if (oldStatus) oldStatus.remove();
+
+  // 1. Status bar
+  const main = document.getElementById("main");
   const statusEl = createStatusBar("loading", "Consultando APIs...");
-  main.appendChild(statusEl);
+  statusEl.id = "statusBar";
+  main.insertBefore(statusEl, document.getElementById("aiBlock"));
 
   let queryResult;
   try {
@@ -78,31 +88,32 @@ window.run = async function () {
 
   const successCount = Object.keys(queryResult.data ?? {}).length;
   const failCount = Object.keys(queryResult.errors ?? {}).length;
-  const hasErrors = failCount > 0;
-
   updateStatusBar(
     statusEl,
-    hasErrors ? "warn" : "ok",
-    `${successCount} rota(s) OK${hasErrors ? `, ${failCount} com erro` : ""}`,
+    failCount > 0 ? "warn" : "ok",
+    `${successCount} rota(s) OK${failCount > 0 ? `, ${failCount} com erro` : ""}`
   );
 
-  // 2. Bloco IA — aparece já com cursor piscando
-  const aiEl = createAiBlock();
-  main.appendChild(aiEl);
-  const aiBody = aiEl.querySelector(".ai-body");
-
-  // 3. Cards de dados
+  // 2. Cards de dados
   const grid = document.createElement("div");
   grid.className = "data-grid";
+  grid.id = "dataGrid";
   buildDataCards(queryResult, grid);
-  main.appendChild(grid);
+  main.insertBefore(grid, document.getElementById("aiBlock"));
 
-  // 4. Streaming da análise
+  // 3. Bloco IA
+  const aiBlock = document.getElementById("aiBlock");
+  const aiBody = document.getElementById("aiBody");
+  aiBlock.style.display = "block";
+  aiBody.dataset.raw = "";
+  aiBody.innerHTML = '<span class="cursor"></span>';
+
   setButtonLabel("Analisando...");
 
   try {
     await streamAnalysis(queryResult, (text) => {
-      appendAiText(aiBody, text);
+      aiBody.dataset.raw += text;
+      aiBody.innerHTML = renderMarkdown(aiBody.dataset.raw) + '<span class="cursor"></span>';
     });
     aiBody.innerHTML = renderMarkdown(aiBody.dataset.raw ?? "");
   } catch (err) {
@@ -119,7 +130,6 @@ function createStatusBar(type, text) {
   el.innerHTML = `
     <div class="status-dot ${type}"></div>
     <span class="status-text">${text}</span>
-    <span class="status-meta" id="statusMeta"></span>
   `;
   return el;
 }
@@ -127,19 +137,6 @@ function createStatusBar(type, text) {
 function updateStatusBar(el, type, text) {
   el.querySelector(".status-dot").className = `status-dot ${type}`;
   el.querySelector(".status-text").textContent = text;
-}
-
-function createAiBlock() {
-  const el = document.createElement("div");
-  el.className = "ai-block";
-  el.innerHTML = `
-    <div class="ai-header">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
-      Análise — GPT
-    </div>
-    <div class="ai-body" data-raw=""><span class="cursor"></span></div>
-  `;
-  return el;
 }
 
 function buildDataCards(queryResult, container) {
@@ -217,18 +214,13 @@ async function streamAnalysis(queryResult, onChunk) {
   }
 }
 
-function appendAiText(el, text) {
-  el.dataset.raw = (el.dataset.raw ?? "") + text;
-  // Renderiza em tempo real com markdown simples
-  el.innerHTML = renderMarkdown(el.dataset.raw) + '<span class="cursor"></span>';
-}
-
-// ── Markdown básico (negrito, listas, quebras) ─────────────────────────────
+// ── Markdown ───────────────────────────────────────────────────────────────
 function renderMarkdown(text) {
   return text
+    .replace(/\*\*(.+?)\*\*/g, "§STRONG§$1§/STRONG§")
+    .replace(/^#{1,3} (.+)$/gm, "§STRONG§$1§/STRONG§")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/^#{1,3} (.+)$/gm, "<strong>$1</strong>")
+    .replace(/§STRONG§(.+?)§\/STRONG§/g, "<strong>$1</strong>")
     .replace(/^[\-\*] (.+)$/gm, "• $1")
     .replace(/\n/g, "<br>");
 }
@@ -262,21 +254,18 @@ function setButtonLabel(text) {
 }
 
 function showError(msg) {
-  const main = document.getElementById("main");
-  main.innerHTML = `<div class="empty"><p style="color:var(--red)">${msg}</p></div>`;
+  document.getElementById("emptyState").style.display = "flex";
+  document.getElementById("emptyState").querySelector("p").style.color = "var(--red)";
+  document.getElementById("emptyState").querySelector("p").textContent = msg;
 }
 
-// ── DB Fields state ────────────────────────────────────────────────────────
-state.dbFields = {};
-
-// ── Drop zone: drag & drop + paste ────────────────────────────────────────
+// ── DB Fields ──────────────────────────────────────────────────────────────
 const dropZone = document.getElementById("dropZone");
 
 dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
 dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
 dropZone.addEventListener("drop", (e) => { e.preventDefault(); dropZone.classList.remove("dragover"); const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
 
-// Colar print com Ctrl+V / Cmd+V
 document.addEventListener("paste", (e) => {
   const item = [...e.clipboardData.items].find(i => i.type.startsWith("image/"));
   if (item) handleFile(item.getAsFile());
@@ -321,11 +310,11 @@ function toBase64(file) {
   });
 }
 
-function setDropState(state, label) {
+function setDropState(st, label) {
   const dz = document.getElementById("dropZone");
   dz.classList.remove("loading", "done", "dragover");
-  if (state === "loading") dz.classList.add("loading");
-  if (state === "done") dz.classList.add("done");
+  if (st === "loading") dz.classList.add("loading");
+  if (st === "done") dz.classList.add("done");
   document.getElementById("dropLabel").textContent = label;
 }
 

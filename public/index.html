@@ -17,10 +17,7 @@
   <aside class="sidebar">
     <div class="sidebar-top">
       <div class="logo">
-<img src="/images/zoppy.avif" alt="Zoppy" class="logo-img" />        <div>
-          <!-- <div class="logo-name">Zoppy Whatsapp</div>
-          <div class="logo-sub">Análise Whatsapp com IA</div> -->
-        </div>
+        <img src="/images/zoppy.avif" alt="Zoppy" class="logo-img" />
       </div>
 
       <div class="form-group">
@@ -44,7 +41,6 @@
       <div class="form-group">
         <label class="label-muted">Dados do banco Zoppy</label>
 
-        <!-- Drop zone -->
         <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
           <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(this.files[0])">
           <div class="drop-icon">
@@ -53,7 +49,6 @@
           <span id="dropLabel">Cole ou selecione um print do banco</span>
         </div>
 
-        <!-- Campos extraídos -->
         <div class="db-fields" id="dbFields" style="display:none">
           <div class="db-field-row">
             <span class="db-field-label">businessName</span>
@@ -114,12 +109,24 @@
 
   <!-- ── Main ── -->
   <main class="main" id="main">
+
+    <!-- Empty state -->
     <div class="empty" id="emptyState">
       <div class="empty-icon">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
       </div>
       <p>Preencha as credenciais e execute a análise.</p>
     </div>
+
+    <!-- Bloco fixo da IA -->
+    <div class="ai-block" id="aiBlock" style="display:none">
+      <div class="ai-header">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+        Análise — GPT
+      </div>
+      <div class="ai-body" id="aiBody" data-raw=""></div>
+    </div>
+
   </main>
 
 </div>

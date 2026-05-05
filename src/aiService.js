@@ -9,7 +9,7 @@ const CONTEXT = fs.readFileSync(
 );
 
 function sanitize(queryResult) {
-  const { data, errors } = queryResult;
+  const { data = {}, errors = {} } = queryResult;
   const out = {};
 
   for (const [key, payload] of Object.entries(data)) {
@@ -27,9 +27,6 @@ function sanitize(queryResult) {
   return { data: out, errors };
 }
 
-/**
- * Monta o prompt incluindo dados da Meta e, se disponíveis, campos do banco Zoppy.
- */
 function buildPrompt(queryResult) {
   const clean = sanitize(queryResult);
   let prompt = `${CONTEXT}\n\n## Dados da Meta API\n\`\`\`json\n${JSON.stringify(clean)}\n\`\`\``;
@@ -43,6 +40,7 @@ function buildPrompt(queryResult) {
 
 async function analyzeWithStream(queryResult, onChunk) {
   const prompt = buildPrompt(queryResult);
+  console.log("→ prompt montado, tamanho:", prompt.length, "chars");
 
   const response = await axios.post(
     "https://api.openai.com/v1/chat/completions",
@@ -63,27 +61,46 @@ async function analyzeWithStream(queryResult, onChunk) {
     }
   );
 
+  console.log("→ OpenAI respondeu, status:", response.status);
+
   return new Promise((resolve, reject) => {
     let buffer = "";
+    let totalChunks = 0;
 
     response.data.on("data", (chunk) => {
-      buffer += chunk.toString();
+      const raw = chunk.toString();
+      console.log("→ chunk recebido:", raw.slice(0, 120));
+      buffer += raw;
       const lines = buffer.split("\n");
       buffer = lines.pop();
 
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
-        const raw = line.slice(6).trim();
-        if (raw === "[DONE]") { resolve(); return; }
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") {
+          console.log("→ stream finalizado, total chunks:", totalChunks);
+          resolve();
+          return;
+        }
         try {
-          const text = JSON.parse(raw)?.choices?.[0]?.delta?.content;
-          if (text) onChunk(text);
+          const text = JSON.parse(data)?.choices?.[0]?.delta?.content;
+          if (text) {
+            totalChunks++;
+            onChunk(text);
+          }
         } catch {}
       }
     });
 
-    response.data.on("end", resolve);
-    response.data.on("error", reject);
+    response.data.on("end", () => {
+      console.log("→ stream end, total chunks:", totalChunks);
+      resolve();
+    });
+
+    response.data.on("error", (err) => {
+      console.error("→ erro no stream:", err.message);
+      reject(err);
+    });
   });
 }
 

@@ -46,12 +46,6 @@ body {
   height: 100vh;
 }
 
-.logo-img {
-  height: 32px;
-  width: auto;
-  object-fit: contain;
-}
-
 /* ── Sidebar ── */
 .sidebar {
   background: var(--surface);
@@ -108,6 +102,12 @@ body {
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.2px;
+}
+
+.logo-img {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
 }
 
 .logo-sub {
@@ -365,7 +365,7 @@ input::placeholder { color: var(--text3); }
   font-size: 13.5px;
   line-height: 1.85;
   color: var(--text);
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
   min-height: 48px;
 }
@@ -469,7 +469,6 @@ pre {
   color: var(--text2);
   background: var(--surface2);
 }
-
 /* JSON syntax highlight — adaptado para tema claro */
 .jk { color: rgb(0,46,115); }
 .jv { color: #15803d; }
