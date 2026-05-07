@@ -59,11 +59,16 @@ window.run = async function () {
     return;
   }
 
+  console.log("[run] iniciando consulta para wabaId:", wabaId);
   setLoading(true);
+
+  const dataPanel = document.getElementById("dataPanel");
+  const aiBody = document.getElementById("aiBody");
 
   // Reset UI
   document.getElementById("emptyState").style.display = "none";
-  document.getElementById("aiBlock").style.display = "none";
+  aiBody.dataset.raw = "";
+  aiBody.innerHTML = '<span class="cursor"></span>';
 
   // Remove cards anteriores
   const oldGrid = document.getElementById("dataGrid");
@@ -72,15 +77,17 @@ window.run = async function () {
   if (oldStatus) oldStatus.remove();
 
   // 1. Status bar
-  const main = document.getElementById("main");
   const statusEl = createStatusBar("loading", "Consultando APIs...");
   statusEl.id = "statusBar";
-  main.insertBefore(statusEl, document.getElementById("aiBlock"));
+  dataPanel.appendChild(statusEl);
 
   let queryResult;
   try {
+    console.log("[run] chamando /api/query...");
     queryResult = await api("/api/query", { token, wabaId });
+    console.log("[run] queryResult recebido:", queryResult);
   } catch (err) {
+    console.error("[run] erro em /api/query:", err.message);
     updateStatusBar(statusEl, "error", `Erro na consulta: ${err.message}`);
     setLoading(false);
     return;
@@ -88,6 +95,7 @@ window.run = async function () {
 
   const successCount = Object.keys(queryResult.data ?? {}).length;
   const failCount = Object.keys(queryResult.errors ?? {}).length;
+  console.log("[run] rotas OK:", successCount, "| com erro:", failCount);
   updateStatusBar(
     statusEl,
     failCount > 0 ? "warn" : "ok",
@@ -99,24 +107,26 @@ window.run = async function () {
   grid.className = "data-grid";
   grid.id = "dataGrid";
   buildDataCards(queryResult, grid);
-  main.insertBefore(grid, document.getElementById("aiBlock"));
+  dataPanel.appendChild(grid);
 
-  // 3. Bloco IA
-  const aiBlock = document.getElementById("aiBlock");
-  const aiBody = document.getElementById("aiBody");
-  aiBlock.style.display = "block";
-  aiBody.dataset.raw = "";
-  aiBody.innerHTML = '<span class="cursor"></span>';
-
+  // 3. Stream da IA
   setButtonLabel("Analisando...");
+  console.log("[run] iniciando streamAnalysis...");
 
   try {
     await streamAnalysis(queryResult, (text) => {
+      console.log("[onChunk] texto recebido:", JSON.stringify(text), "| raw acumulado:", aiBody.dataset.raw.length + text.length, "chars");
       aiBody.dataset.raw += text;
       aiBody.innerHTML = renderMarkdown(aiBody.dataset.raw) + '<span class="cursor"></span>';
+      console.log("[onChunk] innerHTML atualizado, tamanho:", aiBody.innerHTML.length);
     });
+    console.log("[run] stream finalizado. raw.length:", aiBody.dataset.raw.length);
     aiBody.innerHTML = renderMarkdown(aiBody.dataset.raw ?? "");
+    if (!aiBody.dataset.raw) {
+      aiBody.innerHTML = '<span class="ai-placeholder">Nenhum conteúdo recebido da IA.</span>';
+    }
   } catch (err) {
+    console.error("[run] erro no stream:", err.message);
     aiBody.innerHTML = `<span style="color:var(--red)">Erro na análise: ${err.message}</span>`;
   }
 
@@ -177,38 +187,68 @@ window.toggleCard = function (key) {
 
 // ── AI streaming ───────────────────────────────────────────────────────────
 async function streamAnalysis(queryResult, onChunk) {
+  console.log("[stream] chamando POST /api/analyze...");
+  const body = JSON.stringify({ queryResult: { ...queryResult, dbFields: state.dbFields ?? {} } });
+  console.log("[stream] body size:", body.length, "chars");
+
   const res = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ queryResult: { ...queryResult, dbFields: state.dbFields ?? {} } }),
+    body,
   });
+
+  console.log("[stream] resposta HTTP:", res.status, res.statusText, "| ok:", res.ok);
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    console.error("[stream] erro HTTP:", err);
     throw new Error(err.error ?? res.statusText);
   }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let chunkCount = 0;
+
+  console.log("[stream] iniciando leitura SSE...");
 
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
+    if (done) {
+      console.log("[stream] reader.done=true. chunks processados:", chunkCount);
+      break;
+    }
+
+    chunkCount++;
+    const raw = decoder.decode(value, { stream: true });
+    console.log(`[stream] chunk #${chunkCount} (${raw.length} bytes):`, JSON.stringify(raw.slice(0, 200)));
+
+    buffer += raw;
     const lines = buffer.split("\n");
     buffer = lines.pop();
 
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
+      console.log("[stream] linha SSE:", line);
       try {
         const payload = JSON.parse(line.slice(6));
-        if (payload.done) return;
-        if (payload.error) throw new Error(payload.error);
-        if (payload.text) onChunk(payload.text);
+        console.log("[stream] payload parseado:", payload);
+        if (payload.done) {
+          console.log("[stream] payload.done=true → encerrando");
+          return;
+        }
+        if (payload.error) {
+          console.error("[stream] payload.error:", payload.error);
+          throw new Error(payload.error);
+        }
+        if (payload.text) {
+          console.log("[stream] chamando onChunk com:", JSON.stringify(payload.text));
+          onChunk(payload.text);
+        }
       } catch (e) {
-        if (e.message !== "JSON") throw e;
+        if (!(e instanceof SyntaxError)) throw e;
+        console.warn("[stream] SyntaxError ao parsear linha, ignorando:", line);
       }
     }
   }
@@ -254,9 +294,10 @@ function setButtonLabel(text) {
 }
 
 function showError(msg) {
-  document.getElementById("emptyState").style.display = "flex";
-  document.getElementById("emptyState").querySelector("p").style.color = "var(--red)";
-  document.getElementById("emptyState").querySelector("p").textContent = msg;
+  const emptyState = document.getElementById("emptyState");
+  emptyState.style.display = "flex";
+  emptyState.querySelector("p").style.color = "var(--red)";
+  emptyState.querySelector("p").textContent = msg;
 }
 
 // ── DB Fields ──────────────────────────────────────────────────────────────
