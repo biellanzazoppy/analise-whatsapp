@@ -40,60 +40,41 @@
       <!-- ── Dados do banco ── -->
       <div class="form-group">
         <label class="label-muted">Dados do banco Zoppy</label>
-
-        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-          <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(this.files[0])">
-          <div class="drop-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <div class="db-inputs">
+          <div class="db-input-row">
+            <span class="db-input-label">businessName</span>
+            <input type="text" id="db-businessName" placeholder="—" autocomplete="off">
           </div>
-          <span id="dropLabel">Cole ou selecione um print do banco</span>
+          <div class="db-input-row">
+            <span class="db-input-label">scenario</span>
+            <input type="text" id="db-scenario" placeholder="—" autocomplete="off">
+          </div>
+          <div class="db-input-row">
+            <span class="db-input-label">status</span>
+            <input type="text" id="db-status" placeholder="—" autocomplete="off">
+          </div>
+          <div class="db-input-row">
+            <span class="db-input-label">syncAttempt</span>
+            <input type="number" id="db-syncAttempt" placeholder="—" autocomplete="off">
+          </div>
+          <div class="db-input-row">
+            <span class="db-input-label">errorMessage</span>
+            <input type="text" id="db-errorMessage" placeholder="—" autocomplete="off">
+          </div>
+          <div class="db-input-row">
+            <span class="db-input-label">active</span>
+            <input type="text" id="db-active" placeholder="true / false" autocomplete="off">
+          </div>
+          <div class="db-input-row">
+            <span class="db-input-label">qualityRating</span>
+            <input type="text" id="db-qualityRating" placeholder="GREEN / YELLOW / RED" autocomplete="off">
+          </div>
+          <div class="db-input-row">
+            <span class="db-input-label">phoneStatus</span>
+            <input type="text" id="db-phoneStatus" placeholder="—" autocomplete="off">
+          </div>
         </div>
-
-        <div class="db-fields" id="dbFields" style="display:none">
-          <div class="db-field-row">
-            <span class="db-field-label">businessName</span>
-            <span class="db-field-value" id="f-businessName">—</span>
-          </div>
-          <div class="db-field-row">
-            <span class="db-field-label">scenario</span>
-            <span class="db-field-value" id="f-scenario">—</span>
-          </div>
-          <div class="db-field-row">
-            <span class="db-field-label">status</span>
-            <span class="db-field-value" id="f-status">—</span>
-          </div>
-          <div class="db-field-row">
-            <span class="db-field-label">syncAttempt</span>
-            <span class="db-field-value" id="f-syncAttempt">—</span>
-          </div>
-          <div class="db-field-row">
-            <span class="db-field-label">errorMessage</span>
-            <span class="db-field-value" id="f-errorMessage">—</span>
-          </div>
-          <div class="db-field-row">
-            <span class="db-field-label">active</span>
-            <span class="db-field-value" id="f-active">—</span>
-          </div>
-          <div class="db-field-row">
-            <span class="db-field-label">qualityRating</span>
-            <span class="db-field-value" id="f-qualityRating">—</span>
-          </div>
-          <div class="db-field-row">
-            <span class="db-field-label">phoneStatus</span>
-            <span class="db-field-value" id="f-phoneStatus">—</span>
-          </div>
-          <button class="clear-btn" onclick="clearDb()">Limpar</button>
-        </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <div class="form-group">
-        <label class="label-muted">Rotas configuradas</label>
-        <ul class="route-list" id="routeList">
-          <li class="route-item skeleton"></li>
-          <li class="route-item skeleton"></li>
-        </ul>
+        <button class="clear-btn" onclick="clearDb()">Limpar campos</button>
       </div>
     </div>
 

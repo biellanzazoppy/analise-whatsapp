@@ -4,7 +4,6 @@
 const state = {
   loading: false,
   routeLabels: {},
-  dbFields: {},
 };
 
 // ── Init ───────────────────────────────────────────────────────────────────
@@ -12,7 +11,6 @@ const state = {
   try {
     const routes = await api("/api/routes");
     routes.forEach((r) => (state.routeLabels[r.key] = r.label));
-    renderRouteList(routes);
   } catch {}
 })();
 
@@ -34,12 +32,6 @@ async function api(url, body) {
 }
 
 // ── Sidebar helpers ────────────────────────────────────────────────────────
-function renderRouteList(routes) {
-  document.getElementById("routeList").innerHTML = routes
-    .map((r) => `<li class="route-item"><span class="method-tag">${r.method}</span>${r.label}</li>`)
-    .join("");
-}
-
 window.toggleVisibility = function (id, btn) {
   const input = document.getElementById(id);
   const isPassword = input.type === "password";
@@ -114,7 +106,7 @@ window.run = async function () {
   console.log("[run] iniciando streamAnalysis...");
 
   try {
-    await streamAnalysis(queryResult, (text) => {
+    await streamAnalysis({ ...queryResult, dbFields: getDbFields() }, (text) => {
       console.log("[onChunk] texto recebido:", JSON.stringify(text), "| raw acumulado:", aiBody.dataset.raw.length + text.length, "chars");
       aiBody.dataset.raw += text;
       aiBody.innerHTML = renderMarkdown(aiBody.dataset.raw) + '<span class="cursor"></span>';
@@ -188,7 +180,7 @@ window.toggleCard = function (key) {
 // ── AI streaming ───────────────────────────────────────────────────────────
 async function streamAnalysis(queryResult, onChunk) {
   console.log("[stream] chamando POST /api/analyze...");
-  const body = JSON.stringify({ queryResult: { ...queryResult, dbFields: state.dbFields ?? {} } });
+  const body = JSON.stringify({ queryResult });
   console.log("[stream] body size:", body.length, "chars");
 
   const res = await fetch("/api/analyze", {
@@ -300,79 +292,22 @@ function showError(msg) {
   emptyState.querySelector("p").textContent = msg;
 }
 
-// ── DB Fields ──────────────────────────────────────────────────────────────
-const dropZone = document.getElementById("dropZone");
+// ── DB Fields (inputs manuais) ─────────────────────────────────────────────
+const DB_KEYS = ["businessName","scenario","status","syncAttempt","errorMessage","active","qualityRating","phoneStatus"];
 
-dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-dropZone.addEventListener("drop", (e) => { e.preventDefault(); dropZone.classList.remove("dragover"); const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
-
-document.addEventListener("paste", (e) => {
-  const item = [...e.clipboardData.items].find(i => i.type.startsWith("image/"));
-  if (item) handleFile(item.getAsFile());
-});
-
-window.handleFile = async function (file) {
-  if (!file || !file.type.startsWith("image/")) return;
-
-  setDropState("loading", "Extraindo campos...");
-
-  const base64 = await toBase64(file);
-  const imageBase64 = base64.split(",")[1];
-
-  try {
-    const res = await fetch("/api/extract-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64, mimeType: file.type }),
-    });
-
-    const json = await res.json();
-
-    if (!res.ok || json.error) {
-      setDropState("idle", `Erro: ${json.error}`);
-      return;
-    }
-
-    state.dbFields = json.fields;
-    renderDbFields(json.fields);
-    setDropState("done", "Campos extraídos ✓");
-  } catch (e) {
-    setDropState("idle", "Erro ao processar imagem.");
-  }
-};
-
-function toBase64(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result);
-    r.onerror = rej;
-    r.readAsDataURL(file);
+function getDbFields() {
+  const fields = {};
+  DB_KEYS.forEach(k => {
+    const el = document.getElementById(`db-${k}`);
+    if (!el || !el.value.trim()) return;
+    fields[k] = k === "syncAttempt" ? Number(el.value.trim()) : el.value.trim();
   });
-}
-
-function setDropState(st, label) {
-  const dz = document.getElementById("dropZone");
-  dz.classList.remove("loading", "done", "dragover");
-  if (st === "loading") dz.classList.add("loading");
-  if (st === "done") dz.classList.add("done");
-  document.getElementById("dropLabel").textContent = label;
-}
-
-function renderDbFields(fields) {
-  const keys = ["businessName","scenario","status","syncAttempt","errorMessage","active","qualityRating","phoneStatus"];
-  keys.forEach(k => {
-    const el = document.getElementById(`f-${k}`);
-    if (el) el.textContent = fields[k] != null ? String(fields[k]) : "—";
-  });
-  document.getElementById("dbFields").style.display = "block";
+  return fields;
 }
 
 window.clearDb = function () {
-  state.dbFields = {};
-  const keys = ["businessName","scenario","status","syncAttempt","errorMessage","active","qualityRating","phoneStatus"];
-  keys.forEach(k => { const el = document.getElementById(`f-${k}`); if (el) el.textContent = "—"; });
-  document.getElementById("dbFields").style.display = "none";
-  setDropState("idle", "Cole ou selecione um print do banco");
-  document.getElementById("fileInput").value = "";
+  DB_KEYS.forEach(k => {
+    const el = document.getElementById(`db-${k}`);
+    if (el) el.value = "";
+  });
 };

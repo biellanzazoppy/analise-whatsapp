@@ -519,71 +519,59 @@ pre {
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
-/* ── Drop zone ── */
-.drop-zone {
-  border: 1px dashed var(--border2);
-  border-radius: var(--radius-sm);
-  padding: 12px 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-  font-size: 11px;
-  color: var(--text3);
-}
-
-.drop-zone:hover  { border-color: var(--accent); background: var(--accent-dim); color: var(--text2); }
-.drop-zone.dragover { border-color: var(--accent); background: var(--accent-dim); }
-.drop-zone.loading  { pointer-events: none; opacity: 0.6; }
-.drop-zone.done     { border-color: var(--green); border-style: solid; color: var(--green); }
-
-.drop-icon { flex-shrink: 0; }
-
-/* ── DB fields ── */
-.db-fields {
+/* ── DB inputs manuais ── */
+.db-inputs {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  margin-top: 6px;
 }
 
-.db-field-row {
+.db-input-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 5px 10px;
   border-bottom: 1px solid var(--border);
-  gap: 8px;
 }
 
-.db-field-row:last-of-type { border-bottom: none; }
+.db-input-row:last-child { border-bottom: none; }
 
-.db-field-label {
+.db-input-label {
   font-size: 10px;
   font-weight: 600;
   color: var(--text3);
-  flex-shrink: 0;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-family: var(--mono);
+  padding: 0 8px;
+  flex-shrink: 0;
+  width: 96px;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
 }
 
-.db-field-value {
+.db-input-row input {
+  border: none;
+  border-radius: 0;
+  background: transparent;
   font-size: 11px;
-  font-family: var(--mono);
-  color: var(--text);
-  text-align: right;
-  word-break: break-all;
-  max-width: 140px;
+  padding: 6px 8px;
+  flex: 1;
+  width: 100%;
+  box-shadow: none;
+}
+
+.db-input-row input:focus {
+  border-color: transparent;
+  box-shadow: none;
+  background: var(--accent-dim);
 }
 
 .clear-btn {
   width: 100%;
   background: none;
-  border: none;
-  border-top: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   color: var(--text3);
   font-family: var(--sans);
   font-size: 11px;
@@ -591,7 +579,6 @@ pre {
   padding: 6px;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
-  border-radius: 0;
 }
 
 .clear-btn:hover { color: var(--red); background: var(--red-dim); }

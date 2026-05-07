@@ -2,13 +2,47 @@
 require("dotenv").config();
 
 const express = require("express");
-const axios = require("axios");
 const path = require("path");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const { queryAll, ROUTES } = require("./src/queryService");
 const { analyzeWithStream } = require("./src/aiService");
 
 const app = express();
-app.use(express.json({ limit: "10mb" }));
+
+// ── Segurança: headers HTTP ────────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+    },
+  },
+}));
+
+// ── Segurança: rate limiting ───────────────────────────────────────────────
+const queryLimit = rateLimit({
+  windowMs: 60 * 1000,       // janela de 1 minuto
+  max: 20,                   // máx 20 consultas por IP por minuto
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas requisições. Aguarde 1 minuto." },
+});
+
+const analyzeLimit = rateLimit({
+  windowMs: 60 * 1000,       // janela de 1 minuto
+  max: 10,                   // máx 10 análises por IP por minuto (custo OpenAI)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas análises solicitadas. Aguarde 1 minuto." },
+});
+
+// ── Middlewares ────────────────────────────────────────────────────────────
+app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 // ── GET /api/routes ────────────────────────────────────────────────────────
@@ -17,7 +51,7 @@ app.get("/api/routes", (_, res) => {
 });
 
 // ── POST /api/query ────────────────────────────────────────────────────────
-app.post("/api/query", async (req, res) => {
+app.post("/api/query", queryLimit, async (req, res) => {
   const { token, wabaId } = req.body ?? {};
   if (!token?.trim() || !wabaId?.trim()) {
     return res.status(400).json({ error: "token e wabaId são obrigatórios." });
@@ -30,63 +64,8 @@ app.post("/api/query", async (req, res) => {
   }
 });
 
-// ── POST /api/extract-image ────────────────────────────────────────────────
-// Recebe um print do banco (base64) e extrai os campos necessários via GPT Vision
-app.post("/api/extract-image", async (req, res) => {
-  const { imageBase64, mimeType } = req.body ?? {};
-
-  if (!imageBase64) {
-    return res.status(400).json({ error: "imageBase64 é obrigatório." });
-  }
-
-  const prompt = `Você receberá um print de uma consulta no banco de dados da Zoppy (tabelas WppAccounts e/ou WppAccountPhoneNumbers).
-Extraia APENAS os seguintes campos, se visíveis na imagem:
-
-WppAccounts: scenario, status, syncAttempt, errorMessage, active, businessName
-WppAccountPhoneNumbers: qualityRating, status (renomeie para phoneStatus)
-
-Retorne SOMENTE um JSON válido, sem texto adicional, sem markdown, sem explicações.
-Exemplo: {"scenario":"integrated","status":"failed","syncAttempt":0,"errorMessage":null,"active":true,"businessName":"EMPRESA X","qualityRating":"GREEN","phoneStatus":"VERIFIED"}
-Se um campo não estiver visível na imagem, omita-o do JSON.`;
-
-  try {
-    const response = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-4o",
-        max_tokens: 256,
-        temperature: 0,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: {
-              url: `data:${mimeType || "image/png"};base64,${imageBase64}`,
-              detail: "low"
-            }}
-          ]
-        }]
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 30000,
-      }
-    );
-
-    const raw = response.data.choices[0].message.content.trim();
-    const json = JSON.parse(raw.replace(/```json|```/g, "").trim());
-    res.json({ fields: json });
-  } catch (err) {
-    const detail = err.response?.data?.error?.message ?? err.message;
-    res.status(500).json({ error: detail });
-  }
-});
-
 // ── POST /api/analyze ──────────────────────────────────────────────────────
-app.post("/api/analyze", async (req, res) => {
+app.post("/api/analyze", analyzeLimit, async (req, res) => {
   const { queryResult } = req.body ?? {};
 
   if (!queryResult) {
